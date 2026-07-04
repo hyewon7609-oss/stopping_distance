@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>제동 거리 시뮬레이터</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-slate-50 p-4 md:p-8 font-sans">
+    <div class="max-w-4xl mx-auto bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-100">
+        <div class="bg-indigo-600 p-6 text-white text-center">
+            <h1 class="text-2xl md:text-3xl font-bold mb-2">🚗 속력에 따른 제동 거리 시뮬레이터</h1>
+            <p class="text-indigo-100 text-sm md:text-base">나의 반응 시간과 실험으로 구한 마찰력을 입력해 보세요!</p>
+        </div>
+        
+        <div class="p-6 md:p-8">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                <div class="bg-indigo-50 p-4 rounded-xl border border-indigo-100">
+                    <label class="block text-sm font-bold text-indigo-800 mb-1">⏱ 반응 시간 (T) 초</label>
+                    <input type="number" id="inputT" value="1.0" step="0.1" class="w-full px-3 py-2 border rounded-lg font-bold text-lg" oninput="updateChart()">
+                </div>
+                <div class="bg-orange-50 p-4 rounded-xl border border-orange-100">
+                    <label class="block text-sm font-bold text-orange-800 mb-1">🛣 사포면 마찰력 (N)</label>
+                    <input type="number" id="inputF1" value="2500" step="100" class="w-full px-3 py-2 border rounded-lg font-bold text-lg" oninput="updateChart()">
+                </div>
+                <div class="bg-cyan-50 p-4 rounded-xl border border-cyan-100">
+                    <label class="block text-sm font-bold text-cyan-800 mb-1">🌧 유리면 마찰력 (N)</label>
+                    <input type="number" id="inputF2" value="1700" step="100" class="w-full px-3 py-2 border rounded-lg font-bold text-lg" oninput="updateChart()">
+                </div>
+            </div>
+
+            <div class="bg-white p-4 rounded-xl border border-slate-200">
+                <canvas id="stoppingChart" height="120"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let myChart = null;
+
+        function updateChart() {
+            const T = parseFloat(document.getElementById('inputT').value) || 0;
+            const F1 = parseFloat(document.getElementById('inputF1').value) || 1;
+            const F2 = parseFloat(document.getElementById('inputF2').value) || 1;
+            const m = 1000; // 차량 질량 1000kg 고정
+
+            const speeds = [];
+            const dist1 = [];
+            const dist2 = [];
+
+            // 속력 0~40m/s 까지 데이터 계산
+            for (let v = 0; v <= 40; v += 2) {
+                speeds.push(v);
+                let reactionDist = v * T;
+                let brake1 = (m / (2 * F1)) * (v * v);
+                let brake2 = (m / (2 * F2)) * (v * v);
+                dist1.push((reactionDist + brake1).toFixed(1));
+                dist2.push((reactionDist + brake2).toFixed(1));
+            }
+
+            if (myChart) {
+                myChart.destroy();
+            }
+
+            const ctx = document.getElementById('stoppingChart').getContext('2d');
+            myChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: speeds,
+                    datasets: [
+                        {
+                            label: '사포면 총 정지거리 (m)',
+                            data: dist1,
+                            borderColor: '#f97316',
+                            backgroundColor: '#f97316',
+                            borderWidth: 3,
+                            pointRadius: 3
+                        },
+                        {
+                            label: '유리면 총 정지거리 (m)',
+                            data: dist2,
+                            borderColor: '#06b6d4',
+                            backgroundColor: '#06b6d4',
+                            borderWidth: 3,
+                            pointRadius: 3
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        x: { title: { display: true, text: '속력 (m/s)', font: {weight: 'bold'} } },
+                        y: { title: { display: true, text: '총 정지 거리 (m)', font: {weight: 'bold'} } }
+                    }
+                }
+            });
+        }
+
+        // 초기 그래프 그리기
+        updateChart();
+    </script>
+</body>
+</html>
