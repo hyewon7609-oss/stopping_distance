@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>멈춤의 순간: 정지 거리 실험</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .car-track { background-image: linear-gradient(to right, transparent 50%, rgba(255,255,255,0.2) 50%); background-size: 40px 100%; }
+    </style>
+</head>
+<body class="bg-slate-800 text-white min-h-screen flex flex-col items-center justify-center p-4 font-sans select-none">
+    <div class="bg-white text-slate-800 rounded-3xl w-full max-w-4xl overflow-hidden shadow-2xl p-6 md:p-8">
+        
+        <div class="text-center mb-8">
+            <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight">멈춤의 순간: 정지 거리 실험 🚗</h1>
+            <p class="text-slate-500 mt-2 font-bold">빨간불이 켜지면 최대한 빨리 브레이크를 밟으세요!</p>
+        </div>
+
+        <div class="flex justify-between items-center mb-8 px-4">
+            <div class="flex flex-col items-center bg-slate-800 p-3 rounded-2xl border-2 border-slate-700">
+                <div id="light-red" class="w-12 h-12 rounded-full mb-2 bg-slate-600 transition-colors duration-200"></div>
+                <div id="light-green" class="w-12 h-12 rounded-full bg-slate-600 transition-colors duration-200"></div>
+            </div>
+            <div class="flex-1 ml-8 text-center" id="status-text">
+                <p class="text-2xl font-bold text-slate-400">출발 버튼을 눌러주세요.</p>
+            </div>
+        </div>
+
+        <div class="relative w-full h-40 bg-slate-700 rounded-xl overflow-hidden shadow-inner mb-8 border-4 border-slate-600 car-track">
+            <div id="react-zone" class="absolute top-0 bottom-0 bg-emerald-400/40 border-r-4 border-emerald-500 hidden"></div>
+            <div id="brake-zone" class="absolute top-0 bottom-0 bg-red-400/40 border-r-4 border-red-500 hidden"></div>
+            <div id="car" class="absolute top-1/2 transform -translate-y-1/2 text-5xl md:text-6xl" style="left: 10px;">🚙</div>
+        </div>
+
+        <div class="grid grid-cols-3 gap-4 mb-8">
+            <div class="bg-slate-100 p-4 rounded-xl text-center">
+                <p class="text-slate-500 font-bold text-xs md:text-sm mb-1">나의 반응 시간</p>
+                <p class="text-2xl md:text-3xl font-extrabold text-slate-800"><span id="res-time">0.00</span> <span class="text-base text-slate-500">초</span></p>
+            </div>
+            <div class="bg-emerald-50 p-4 rounded-xl text-center">
+                <p class="text-emerald-600 font-bold text-xs md:text-sm mb-1">반응 거리</p>
+                <p class="text-2xl md:text-3xl font-extrabold text-emerald-700"><span id="res-react">0</span> <span class="text-base opacity-70">m</span></p>
+            </div>
+            <div class="bg-red-50 p-4 rounded-xl text-center">
+                <p class="text-red-600 font-bold text-xs md:text-sm mb-1">제동 거리</p>
+                <p class="text-2xl md:text-3xl font-extrabold text-red-700"><span id="res-brake">0</span> <span class="text-base opacity-70">m</span></p>
+            </div>
+        </div>
+
+        <div id="total-result" class="bg-indigo-50 p-6 rounded-2xl text-center border-2 border-indigo-200 mb-8 hidden">
+            <h2 class="text-indigo-800 font-bold text-lg mb-2">💡 총 정지 거리 = 반응 거리 + 제동 거리</h2>
+            <p class="text-4xl md:text-5xl font-black text-indigo-600"><span id="res-total">0</span> <span class="text-2xl">m</span></p>
+        </div>
+
+        <div class="flex justify-center space-x-4">
+            <button id="btn-start" onclick="startGame()" class="px-8 py-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-full font-bold text-xl shadow-lg">출발하기</button>
+            <button id="btn-brake" onclick="brakeGame()" class="px-10 py-4 bg-slate-300 text-slate-500 rounded-full font-black text-2xl shadow-xl hidden pointer-events-none transition-colors duration-200">브레이크!</button>
+            <button id="btn-reset" onclick="resetGame()" class="px-6 py-4 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-full font-bold text-lg hidden">다시 하기</button>
+        </div>
+    </div>
+
+    <script>
+        let state = 'idle'; // idle, driving, red, braking, stopped
+        let pos = 10;
+        let speed = 0;
+        let reqId;
+        let timerId;
+        let redTime = 0;
+        let reactTime = 0;
+        let reactDist = 0;
+        let brakeStartPos = 0;
+        let brakeDist = 0;
+
+        const car = document.getElementById('car');
+        const lightRed = document.getElementById('light-red');
+        const lightGreen = document.getElementById('light-green');
+        const statusText = document.getElementById('status-text');
+        const btnStart = document.getElementById('btn-start');
+        const btnBrake = document.getElementById('btn-brake');
+        const btnReset = document.getElementById('btn-reset');
+        
+        const reactZone = document.getElementById('react-zone');
+        const brakeZone = document.getElementById('brake-zone');
+        const totalResult = document.getElementById('total-result');
+
+        function animate() {
+            if (state === 'driving' || state === 'red') {
+                pos += speed;
+                car.style.left = pos + 'px';
+                
+                // 화면 밖으로 나가는 것 방지 (가상 루프)
+                if(pos > window.innerWidth - 100) pos = 10; 
+                
+                reqId = requestAnimationFrame(animate);
+            } else if (state === 'braking') {
+                if (speed > 0.1) {
+                    speed -= 0.15; // 감속
+                    pos += speed;
+                    car.style.left = pos + 'px';
+                    brakeDist = pos - brakeStartPos;
+                    
+                    brakeZone.style.width = brakeDist + 'px';
+                    document.getElementById('res-brake').innerText = Math.round(brakeDist / 10);
+                    
+                    reqId = requestAnimationFrame(animate);
+                } else {
+                    state = 'stopped';
+                    statusText.innerHTML = '<p class="text-2xl font-bold text-blue-600">완전히 정지했습니다.</p>';
+                    totalResult.classList.remove('hidden');
+                    document.getElementById('res-total').innerText = Math.round((reactDist + brakeDist) / 10);
+                    btnBrake.classList.add('hidden');
+                    btnReset.classList.remove('hidden');
+                }
+            }
+        }
+
+        function startGame() {
+            resetGame();
+            state = 'driving';
+            speed = 5;
+            
+            btnStart.classList.add('hidden');
+            btnBrake.classList.remove('hidden', 'bg-slate-300', 'text-slate-500', 'pointer-events-none');
+            btnBrake.classList.add('bg-red-500', 'hover:bg-red-600', 'text-white');
+            
+            lightGreen.classList.replace('bg-slate-600', 'bg-emerald-500');
+            statusText.innerHTML = '<p class="text-2xl font-bold text-emerald-500 animate-pulse">주행 중... 신호등을 주시하세요!</p>';
+            
+            reqId = requestAnimationFrame(animate);
+
+            const randomWait = Math.random() * 2000 + 1500;
+            timerId = setTimeout(() => {
+                state = 'red';
+                lightGreen.classList.replace('bg-emerald-500', 'bg-slate-600');
+                lightRed.classList.replace('bg-slate-600', 'bg-red-500');
+                statusText.innerHTML = '<p class="text-3xl font-extrabold text-red-500 animate-bounce">브레이크 밟으세요!!!</p>';
+                redTime = performance.now();
+            }, randomWait);
+        }
+
+        function brakeGame() {
+            if (state === 'driving') {
+                // 예측 출발
+                clearTimeout(timerId);
+                cancelAnimationFrame(reqId);
+                state = 'stopped';
+                statusText.innerHTML = '<p class="text-2xl font-bold text-red-600">❌ 반칙! 빨간불 켜지기 전에 밟았습니다.</p>';
+                btnBrake.classList.add('hidden');
+                btnReset.classList.remove('hidden');
+                return;
+            }
+
+            if (state === 'red') {
+                const now = performance.now();
+                reactTime = ((now - redTime) / 1000).toFixed(2);
+                document.getElementById('res-time').innerText = reactTime;
+                
+                reactDist = pos - 10;
+                if(reactDist < 0) reactDist = 0;
+                document.getElementById('res-react').innerText = Math.round(reactDist / 10);
+                
+                reactZone.style.left = '10px';
+                reactZone.style.width = reactDist + 'px';
+                reactZone.classList.remove('hidden');
+                
+                brakeStartPos = pos;
+                brakeZone.style.left = (10 + reactDist) + 'px';
+                brakeZone.classList.remove('hidden');
+                
+                state = 'braking';
+                statusText.innerHTML = '<p class="text-2xl font-bold text-orange-500">끼이이익! 제동 중...</p>';
+            }
+        }
+
+        function resetGame() {
+            cancelAnimationFrame(reqId);
+            clearTimeout(timerId);
+            state = 'idle';
+            pos = 10;
+            car.style.left = '10px';
+            
+            lightRed.classList.replace('bg-red-500', 'bg-slate-600');
+            lightGreen.classList.replace('bg-emerald-500', 'bg-slate-600');
+            
+            reactZone.classList.add('hidden');
+            brakeZone.classList.add('hidden');
+            totalResult.classList.add('hidden');
+            
+            document.getElementById('res-time').innerText = '0.00';
+            document.getElementById('res-react').innerText = '0';
+            document.getElementById('res-brake').innerText = '0';
+            document.getElementById('res-total').innerText = '0';
+            
+            statusText.innerHTML = '<p class="text-2xl font-bold text-slate-400">출발 버튼을 눌러주세요.</p>';
+            
+            btnStart.classList.remove('hidden');
+            btnBrake.classList.add('hidden');
+            btnReset.classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
